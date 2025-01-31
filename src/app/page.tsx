@@ -7,6 +7,8 @@ import { ArrowRight, LogIn } from "lucide-react";
 // import { db } from "@/lib/db";
 // import { chats } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import Image from "next/image";
+import UploadPDF from "@/components/PDFUpload";
 
 export default async function Home() {
   const { userId } = await auth();
@@ -48,7 +50,7 @@ export default async function Home() {
 
           <div className="w-full mt-4">
             {isAuth ? (
-            <p> fileupload</p>
+            <UploadPDF />
             ) : (
               <Link href="/sign-in">
                 <Button>
