@@ -1,5 +1,5 @@
-import {neon , neonConfig} from '@neondatabase/serverless';   // to connect ne on to drizzle orm
-import { drizzle } from "drizzle-orm/neon-http";
+import { neon, neonConfig } from "@neondatabase/serverless"; // ✅ Correct import
+import { drizzle } from "drizzle-orm/neon-http"; // ✅ Using neon-http for HTTP pooling
 
 // neonConfig.fetchConnectionCache = true;
 

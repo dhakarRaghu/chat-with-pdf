@@ -4,8 +4,11 @@ import { useState, useRef } from "react";
 import { Button } from "./ui/button";
 import toast from "react-hot-toast";
 import { uploadPDF } from "@/lib/pdf-process";
+import { processTextIntoPinecone } from "@/lib/pinecone";
+import { useRouter } from "next/navigation";  
 
 export default function UploadPDF() {
+  const router = useRouter(); 
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
@@ -13,6 +16,7 @@ export default function UploadPDF() {
   const [uploading, setUploading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<{ text?: string; fileUrl?: string } | null>(null);
+  const [Id , setId ] = useState<string | null>(null);
 
   const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB max
   const ALLOWED_FORMATS = ["application/pdf"]; // Only allow PDFs
@@ -51,7 +55,7 @@ export default function UploadPDF() {
     setFile(selectedFile);
     setFileName(selectedFile.name);
     setError(null);
-    await handleUpload(selectedFile);
+    // await handleUpload(selectedFile);
   };
 
   const handleUpload = async (selectedFile: File) => {
@@ -67,6 +71,13 @@ export default function UploadPDF() {
       setFileName(null);
       setError(null);
       toast.success("File uploaded successfully");
+      const id = response.chat_id
+      // console.log("id[0] is here " , id[0]);
+      // console.log("id only : " ,[id] ) 
+      setId(id[0]);
+      if (id) {
+          router.push(`/chat/${id}`);
+      }
     } catch (err) {
       setError("Upload failed. Please try again.");
     } finally {
@@ -132,10 +143,15 @@ export default function UploadPDF() {
           {uploadedFile.text && (
             <div className="mt-2 p-2 border border-gray-300 rounded-md max-h-40 overflow-auto text-sm text-gray-700">
               <strong>Extracted Text:</strong> {uploadedFile.text}
+              {/* <strong>Extracted link:</strong> {Id} */}
+
             </div>
           )}
         </div>
       )}
     </div>
   );
+  
+
+  
 }

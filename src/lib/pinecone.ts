@@ -1,93 +1,123 @@
-// import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
-// import { downloadFromS3 } from "./s3-server";
-// import { PDFLoader } from "langchain/document_loaders/fs/pdf";
-// import md5 from "md5";
-// import {
-//   Document,
-//   RecursiveCharacterTextSplitter,
-// } from "@pinecone-database/doc-splitter";
-// import { getEmbeddings } from "./embeddings";
-// import { convertToAscii } from "./utils";
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { Pinecone, PineconeRecord } from "@pinecone-database/pinecone";
+import dotenv from 'dotenv';
+import md5 from 'md5';
+import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 
-// export const getPineconeClient = () => {
-//   return new Pinecone({
-//     environment: process.env.PINECONE_ENVIRONMENT!,
-//     apiKey: process.env.PINECONE_API_KEY!,
-//   });
-// };
+dotenv.config();
 
-// type PDFPage = {
-//   pageContent: string;
-//   metadata: {
-//     loc: { pageNumber: number };
-//   };
-// };
+export const getPineconeClient = () => {
+    return new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY!,
+    });
+  };
 
-// export async function loadS3IntoPinecone(fileKey: string) {
-//   // 1. obtain the pdf -> downlaod and read from pdf
-//   console.log("downloading s3 into file system");
-//   const file_name = await downloadFromS3(fileKey);
-//   if (!file_name) {
-//     throw new Error("could not download from s3");
-//   }
-//   console.log("loading pdf into memory" + file_name);
-//   const loader = new PDFLoader(file_name);
-//   const pages = (await loader.load()) as PDFPage[];
+const googleai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string).getGenerativeModel({
+  model: "text-embedding-004",
+});
 
-//   // 2. split and segment the pdf
-//   const documents = await Promise.all(pages.map(prepareDocument));
+// Main function to process text and upload embeddings to Pinecone
+export async function processTextIntoPinecone(text: string, fileKey: string) {
+  console.log("Splitting text into smaller chunks...");
+  const documents = await splitTextIntoChunks(text);
 
-//   // 3. vectorise and embed individual documents
-//   const vectors = await Promise.all(documents.flat().map(embedDocument));
+  console.log("Generating embeddings...");
+  const vectors = await generateEmbeddings(documents);
 
-//   // 4. upload to pinecone
-//   const client = await getPineconeClient();
-//   const pineconeIndex = await client.index("chatpdf");
-//   const namespace = pineconeIndex.namespace(convertToAscii(fileKey));
+  console.log("Uploading embeddings to Pinecone...");
+  await uploadToPinecone(vectors, fileKey);
 
-//   console.log("inserting vectors into pinecone");
-//   await namespace.upsert(vectors);
+  return documents[0]; // Return first processed doc
+}
 
-//   return documents[0];
-// }
+// Splits large text into smaller overlapping chunks
+async function splitTextIntoChunks(text: string) {
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000, // Adjust chunk size based on Gemini limits
+    chunkOverlap: 200, // Ensures context is preserved
+  });
 
-// async function embedDocument(doc: Document) {
-//   try {
-//     const embeddings = await getEmbeddings(doc.pageContent);
-//     const hash = md5(doc.pageContent);
+  const docs = await splitter.splitDocuments([
+    {
+      pageContent: text,
+      metadata: {
+        text: truncateStringByBytes(text, 36000),
+      },
+    },
+  ]);
 
-//     return {
-//       id: hash,
-//       values: embeddings,
-//       metadata: {
-//         text: doc.metadata.text,
-//         pageNumber: doc.metadata.pageNumber,
-//       },
-//     } as PineconeRecord;
-//   } catch (error) {
-//     console.log("error embedding document", error);
-//     throw error;
-//   }
-// }
+  return docs;
+}
 
-// export const truncateStringByBytes = (str: string, bytes: number) => {
-//   const enc = new TextEncoder();
-//   return new TextDecoder("utf-8").decode(enc.encode(str).slice(0, bytes));
-// };
+// Generates embeddings using Gemini
+async function generateEmbeddings(docs: { pageContent: string; metadata: any }[]) {
+  try {
+    return await Promise.all(
+      docs.map(async (doc) => ({
+        id: md5(doc.pageContent),
+        values: await generateEmbedding(doc.pageContent),
+        metadata: doc.metadata,
+      }))
+    );
+  } catch (error) {
+    console.error("Error generating embeddings batch:", error);
+    throw error;
+  }
+}
 
-// async function prepareDocument(page: PDFPage) {
-//   let { pageContent, metadata } = page;
-//   pageContent = pageContent.replace(/\n/g, "");
-//   // split the docs
-//   const splitter = new RecursiveCharacterTextSplitter();
-//   const docs = await splitter.splitDocuments([
-//     new Document({
-//       pageContent,
-//       metadata: {
-//         pageNumber: metadata.loc.pageNumber,
-//         text: truncateStringByBytes(pageContent, 36000),
-//       },
-//     }),
-//   ]);
-//   return docs;
-// }
+// Calls Google Gemini to generate embeddings
+async function generateEmbedding(text: string): Promise<number[]> {
+  try {
+    const result = await googleai.embedContent(text);
+    return result.embedding.values;
+  } catch (error) {
+    console.error("Error generating embedding:", error);
+    throw error;
+  }
+}
+
+// Uploads embeddings to Pinecone
+async function uploadToPinecone(vectors: any[], fileKey: string) {
+    const client = await getPineconeClient();
+    const pineconeIndex = await client.index("chatpdf");
+    const namespace = pineconeIndex.namespace(fileKey);
+  
+    console.log("Inserting vectors into Pinecone...");
+  
+    // Ensure metadata values are valid
+    const sanitizedVectors = vectors.map(vector => ({
+      id: vector.id,
+      values: vector.values,
+      metadata: sanitizeMetadata(vector.metadata),
+    }));
+  
+    await namespace.upsert(sanitizedVectors);
+  }
+  
+  // Helper function to sanitize metadata
+  function sanitizeMetadata(metadata: Record<string, any>) {
+    const sanitized: Record<string, string | number | boolean | string[]> = {};
+    
+    for (const key in metadata) {
+      if (
+        typeof metadata[key] === "string" ||
+        typeof metadata[key] === "number" ||
+        typeof metadata[key] === "boolean"
+      ) {
+        sanitized[key] = metadata[key]; // Keep valid values
+      } else if (Array.isArray(metadata[key]) && metadata[key].every(v => typeof v === "string")) {
+        sanitized[key] = metadata[key]; // Keep list of strings
+      } else {
+        sanitized[key] = JSON.stringify(metadata[key]); // Convert objects/arrays to strings
+      }
+    }
+    
+    return sanitized;
+  }
+  
+
+// Ensures text does not exceed byte limit
+export const truncateStringByBytes = (str: string, bytes: number) => {
+  const enc = new TextEncoder();
+  return new TextDecoder("utf-8").decode(enc.encode(str).slice(0, bytes));
+};
