@@ -40,7 +40,7 @@ console.log("blob" , blob);
     if (extractedText) {
       try {
         console.log("Processing file:", pdf.name);
-        const fileKey = `${pdf.name}-${Date.now()}`;
+        const fileKey = `${pdf.name}-${Date.now()}.pdf`;
         await processTextIntoPinecone(extractedText, fileKey);
         console.log("Embedding uploaded successfully!");
 
@@ -57,9 +57,9 @@ console.log("blob" , blob);
         // if(chat_id){
         //   redirect(`/chat/${chat_id[0]}`);
         // }
-        console.log("chat_id : " , chat_id) 
-        console.log("chat_id[0] : " , chat_id[0])
-        console.log("insertedid : " , chat_id[0].insertedId )
+        // console.log("chat_id : " , chat_id) 
+        // console.log("chat_id[0] : " , chat_id[0])
+        // console.log("insertedid : " , chat_id[0].insertedId )
       } catch (error) {
         console.error("Error processing text:", error);
       }
