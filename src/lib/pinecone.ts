@@ -33,8 +33,8 @@ export async function processTextIntoPinecone(text: string, fileKey: string) {
 // Splits large text into smaller overlapping chunks
 async function splitTextIntoChunks(text: string) {
   const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000, // Adjust chunk size based on Gemini limits
-    chunkOverlap: 200, // Ensures context is preserved
+    chunkSize: 200, // Adjust chunk size based on Gemini limits
+    chunkOverlap: 50, // Ensures context is preserved
   });
 
   const docs = await splitter.splitDocuments([
@@ -66,7 +66,7 @@ async function generateEmbeddings(docs: { pageContent: string; metadata: any }[]
 }
 
 // Calls Google Gemini to generate embeddings
-async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(text: string): Promise<number[]> {
   try {
     const result = await googleai.embedContent(text);
     return result.embedding.values;
