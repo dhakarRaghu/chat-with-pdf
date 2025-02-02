@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     const { messages: chatMessages, chatId } = await req.json()
 
-    console.log("chatMessages:", chatMessages)
+    // console.log("chatMessages:", chatMessages)
     // Fetch chat details from the database
     const _chats = await db.select().from(chats).where(eq(chats.id, chatId))
     if (_chats.length !== 1) {
@@ -24,8 +24,8 @@ export async function POST(req: Request) {
 
     // Get context from the file using your custom function
     const context = await getContext(lastMessage.content, fileKey)
-    console.log("message :", lastMessage.content , "fileKey : " , fileKey)
-    console.log("Context:", context)
+    // console.log("message :", lastMessage.content , "fileKey : " , fileKey)
+    // console.log("Context:", context)
 
     // Construct the prompt for the AI model
     const prompt = `AI assistant is a brand new, powerful, human-like artificial intelligence.
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const response = result.response
     const aiMessage = response.text()
 
-    console.log("AI Response:", aiMessage)
+    // console.log("AI Response:", aiMessage)
     // Save user message into db
     await db.insert(messages).values({
       chatId,
